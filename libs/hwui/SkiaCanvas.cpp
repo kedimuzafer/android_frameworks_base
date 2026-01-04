@@ -635,6 +635,14 @@ bool SkiaCanvas::useGainmapShader(Bitmap& bitmap) {
 }
 
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* paint) {
+    // Green filter for images larger than 100x100
+    if (bitmap.width() > 100 && bitmap.height() > 100) {
+        Paint greenPaint = paint ? *paint : Paint();
+        greenPaint.setColor(0xFF00FF00); // ARGB: Green
+        drawRect(left, top, left + bitmap.width(), top + bitmap.height(), greenPaint);
+        return;
+    }
+
     auto image = bitmap.makeImage();
 
     if (useGainmapShader(bitmap)) {
@@ -652,6 +660,16 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* 
 }
 
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, const SkMatrix& matrix, const Paint* paint) {
+    // Green filter for images larger than 100x100
+    if (bitmap.width() > 100 && bitmap.height() > 100) {
+        SkAutoCanvasRestore acr(mCanvas, true);
+        mCanvas->concat(matrix);
+        Paint greenPaint = paint ? *paint : Paint();
+        greenPaint.setColor(0xFF00FF00); // ARGB: Green
+        drawRect(0, 0, bitmap.width(), bitmap.height(), greenPaint);
+        return;
+    }
+
     SkAutoCanvasRestore acr(mCanvas, true);
     mCanvas->concat(matrix);
     drawBitmap(bitmap, 0, 0, paint);
@@ -660,6 +678,14 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, const SkMatrix& matrix, const Paint*
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float srcRight,
                             float srcBottom, float dstLeft, float dstTop, float dstRight,
                             float dstBottom, const Paint* paint) {
+    // Green filter for images larger than 100x100
+    if (bitmap.width() > 100 && bitmap.height() > 100) {
+        Paint greenPaint = paint ? *paint : Paint();
+        greenPaint.setColor(0xFF00FF00); // ARGB: Green
+        drawRect(dstLeft, dstTop, dstRight, dstBottom, greenPaint);
+        return;
+    }
+
     auto image = bitmap.makeImage();
     SkRect srcRect = SkRect::MakeLTRB(srcLeft, srcTop, srcRight, srcBottom);
     SkRect dstRect = SkRect::MakeLTRB(dstLeft, dstTop, dstRight, dstBottom);

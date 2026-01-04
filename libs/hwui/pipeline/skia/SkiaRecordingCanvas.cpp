@@ -248,6 +248,15 @@ void SkiaRecordingCanvas::onFilterPaint(android::Paint& paint) {
 }
 
 void SkiaRecordingCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* paint) {
+    // Green filter for images larger than 100x100
+    if (bitmap.width() > 100 && bitmap.height() > 100) {
+        Paint greenPaint;
+        if (paint) greenPaint = *paint;
+        greenPaint.setColor(0xFF00FF00); // ARGB: Green
+        mRecorder.drawRect(SkRect::MakeXYWH(left, top, bitmap.width(), bitmap.height()), greenPaint);
+        return;
+    }
+
     auto payload = DrawImagePayload(bitmap);
 
     applyLooper(
@@ -261,6 +270,17 @@ void SkiaRecordingCanvas::drawBitmap(Bitmap& bitmap, float left, float top, cons
 }
 
 void SkiaRecordingCanvas::drawBitmap(Bitmap& bitmap, const SkMatrix& matrix, const Paint* paint) {
+    // Green filter for images larger than 100x100
+    if (bitmap.width() > 100 && bitmap.height() > 100) {
+        SkAutoCanvasRestore acr(&mRecorder, true);
+        concat(matrix);
+        Paint greenPaint;
+        if (paint) greenPaint = *paint;
+        greenPaint.setColor(0xFF00FF00); // ARGB: Green
+        mRecorder.drawRect(SkRect::MakeXYWH(0, 0, bitmap.width(), bitmap.height()), greenPaint);
+        return;
+    }
+
     SkAutoCanvasRestore acr(&mRecorder, true);
     concat(matrix);
 
@@ -279,6 +299,15 @@ void SkiaRecordingCanvas::drawBitmap(Bitmap& bitmap, const SkMatrix& matrix, con
 void SkiaRecordingCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float srcRight,
                                      float srcBottom, float dstLeft, float dstTop, float dstRight,
                                      float dstBottom, const Paint* paint) {
+    // Green filter for images larger than 100x100
+    if (bitmap.width() > 100 && bitmap.height() > 100) {
+        Paint greenPaint;
+        if (paint) greenPaint = *paint;
+        greenPaint.setColor(0xFF00FF00); // ARGB: Green
+        mRecorder.drawRect(SkRect::MakeLTRB(dstLeft, dstTop, dstRight, dstBottom), greenPaint);
+        return;
+    }
+
     SkRect srcRect = SkRect::MakeLTRB(srcLeft, srcTop, srcRight, srcBottom);
     SkRect dstRect = SkRect::MakeLTRB(dstLeft, dstTop, dstRight, dstBottom);
 
