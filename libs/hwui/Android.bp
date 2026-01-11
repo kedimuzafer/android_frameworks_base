@@ -111,7 +111,7 @@ cc_defaults {
         "libharfbuzz_ng",
         "libminikin",
         "server_configurable_flags",
-        "libonnxruntime",
+        // "libonnxruntime", // REMOVED from here (host+android)
     ],
 
     static_libs: [
@@ -142,6 +142,7 @@ cc_defaults {
                 "libui",
                 "aconfig_text_flags_c_lib",
                 "server_configurable_flags",
+                "libonnxruntime", // ADDED here (android only)
             ],
             static_libs: [
                 "libEGL_blobCache",
@@ -581,7 +582,7 @@ cc_defaults {
         "RenderProperties.cpp",
         "RootRenderNode.cpp",
         "SkiaCanvas.cpp",
-        "NsfwDetector.cpp",
+        // "NsfwDetector.cpp", // REMOVED from here
         "SkiaInterpolator.cpp",
         "Tonemapper.cpp",
         "VectorDrawable.cpp",
@@ -639,6 +640,7 @@ cc_defaults {
                 "TreeInfo.cpp",
                 "WebViewFunctorManager.cpp",
                 "protos/graphicsstats.proto",
+                "NsfwDetector.cpp", // ADDED here (android only)
             ],
 
             // Allow implicit fallthroughs in HardwareBitmapUploader.cpp until they are fixed.
@@ -678,16 +680,16 @@ cc_library {
         "android_graphics_jni",
         "linker_hugepage_aligned",
     ],
-    required: [
-        "nsfw_model_onnx",
-        "libonnxruntime",
-    ],
-    export_header_lib_headers: ["android_graphics_apex_headers"],
     target: {
         android: {
+            required: [
+                "nsfw_model_onnx",
+                "libonnxruntime",
+            ],
             version_script: "libhwui.map.txt",
         },
     },
+    export_header_lib_headers: ["android_graphics_apex_headers"],
     afdo: true,
 }
 
