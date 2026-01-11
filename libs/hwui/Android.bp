@@ -764,6 +764,12 @@ cc_prebuilt_library_shared {
         android_x86_64: { srcs: ["onnx_client/lib/x86_64/libonnxruntime.so"], },
         android_x86: { srcs: ["onnx_client/lib/x86/libonnxruntime.so"], },
     },
+    shared_libs: [
+        "liblog",
+        "libc",
+        "libm",
+        "libdl",
+    ],
     strip: { none:true, },
     export_include_dirs: ["onnx_client/include"],
 }
