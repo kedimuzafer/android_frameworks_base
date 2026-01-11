@@ -5,10 +5,21 @@
 #include <thread>
 #include <android/log.h>
 
+// GARANTİ LOG MAKROLARI
+// Eğer sistemde ALOGE tanımlıysa onu kullan, yoksa kendimiz tanımlayalım.
+// Ama önce LOG_TAG'ı ayarlayalım.
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
 #define LOG_TAG "NsfwDetector"
+
+#ifndef ALOGE
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#endif
+
+#ifndef ALOGD
+#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#endif
 
 namespace android {
 namespace uirenderer {
