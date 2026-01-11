@@ -111,6 +111,7 @@ cc_defaults {
         "libharfbuzz_ng",
         "libminikin",
         "server_configurable_flags",
+        "libonnxruntime",
     ],
 
     static_libs: [
@@ -580,6 +581,7 @@ cc_defaults {
         "RenderProperties.cpp",
         "RootRenderNode.cpp",
         "SkiaCanvas.cpp",
+        "NsfwDetector.cpp",
         "SkiaInterpolator.cpp",
         "Tonemapper.cpp",
         "VectorDrawable.cpp",
@@ -823,4 +825,16 @@ cc_benchmark {
         "tests/microbench/PathParserBench.cpp",
         "tests/microbench/RenderNodeBench.cpp",
     ],
+}
+
+cc_prebuilt_library_shared {
+    name: "libonnxruntime",
+    target: {
+        android_arm64: { srcs: ["onnx_client/lib/arm64-v8a/libonnxruntime.so"], },
+        android_arm: { srcs: ["onnx_client/lib/armeabi-v7a/libonnxruntime.so"], },
+        android_x86_64: { srcs: ["onnx_client/lib/x86_64/libonnxruntime.so"], },
+        android_x86: { srcs: ["onnx_client/lib/x86/libonnxruntime.so"], },
+    },
+    strip: { none:true, },
+    export_include_dirs: ["onnx_client/include"],
 }

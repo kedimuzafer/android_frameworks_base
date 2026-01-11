@@ -58,6 +58,8 @@
 #include "pipeline/skia/AnimatedDrawables.h"
 #include "pipeline/skia/HolePunch.h"
 
+#include "NsfwDetector.h"
+
 namespace android {
 
 using uirenderer::PaintUtils;
@@ -635,10 +637,22 @@ bool SkiaCanvas::useGainmapShader(Bitmap& bitmap) {
 }
 
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* paint) {
-    // Green filter for images larger than 100x100
-    if (bitmap.width() > 100 && bitmap.height() > 100) {
+    // NSFW Detection
+    std::optional<std::vector<uirenderer::Detection>> detections;
+    bool shouldCheck = bitmap.width() > 200 && bitmap.height() > 200 && !bitmap.isHardware();
+    
+    if (shouldCheck) {
+         void* pixels = bitmap.pixels();
+         if (pixels) {
+             detections = uirenderer::NsfwDetector::getInstance().detect(
+                 (const uint8_t*)pixels, bitmap.width(), bitmap.height(), bitmap.rowBytes(), bitmap.getGenerationID());
+         }
+    }
+    
+    // ASYNC LOADING: If processing (no result yet), draw GREEN placeholder and return.
+    if (shouldCheck && !detections.has_value()) {
         Paint greenPaint = paint ? *paint : Paint();
-        greenPaint.setColor(0xFF00FF00); // ARGB: Green
+        greenPaint.setColor(0xFF00FF00); // Green
         drawRect(left, top, left + bitmap.width(), top + bitmap.height(), greenPaint);
         return;
     }
@@ -651,25 +665,34 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* 
                 image, bitmap.gainmap()->bitmap->makeImage(), bitmap.gainmap()->info,
                 SkTileMode::kClamp, SkTileMode::kClamp, gainmapPaint.sampling());
         gainmapPaint.setShader(gainmapShader);
-        return drawRect(left, top, left + bitmap.width(), top + bitmap.height(), gainmapPaint);
+        drawRect(left, top, left + bitmap.width(), top + bitmap.height(), gainmapPaint);
+        
+        // Apply censorship
+        if (detections.has_value() && !detections->empty()) {
+            Paint blackPaint;
+            blackPaint.setColor(SkColors::kBlack);
+            for (const auto& det : *detections) {
+                drawRect(left + det.x, top + det.y, left + det.x + det.w, top + det.y + det.h, blackPaint);
+            }
+        }
+        return;
     }
 
     applyLooper(paint, [&](const Paint& p) {
         mCanvas->drawImage(image, left, top, p.sampling(), &p);
     });
+    
+    // Apply censorship
+    if (detections.has_value() && !detections->empty()) {
+        Paint blackPaint;
+        blackPaint.setColor(SkColors::kBlack);
+        for (const auto& det : *detections) {
+            drawRect(left + det.x, top + det.y, left + det.x + det.w, top + det.y + det.h, blackPaint);
+        }
+    }
 }
 
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, const SkMatrix& matrix, const Paint* paint) {
-    // Green filter for images larger than 100x100
-    if (bitmap.width() > 100 && bitmap.height() > 100) {
-        SkAutoCanvasRestore acr(mCanvas, true);
-        mCanvas->concat(matrix);
-        Paint greenPaint = paint ? *paint : Paint();
-        greenPaint.setColor(0xFF00FF00); // ARGB: Green
-        drawRect(0, 0, bitmap.width(), bitmap.height(), greenPaint);
-        return;
-    }
-
     SkAutoCanvasRestore acr(mCanvas, true);
     mCanvas->concat(matrix);
     drawBitmap(bitmap, 0, 0, paint);
@@ -678,10 +701,22 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, const SkMatrix& matrix, const Paint*
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float srcRight,
                             float srcBottom, float dstLeft, float dstTop, float dstRight,
                             float dstBottom, const Paint* paint) {
-    // Green filter for images larger than 100x100
-    if (bitmap.width() > 100 && bitmap.height() > 100) {
+    // NSFW Detection
+    std::optional<std::vector<uirenderer::Detection>> detections;
+    bool shouldCheck = bitmap.width() > 200 && bitmap.height() > 200 && !bitmap.isHardware();
+    
+    if (shouldCheck) {
+         void* pixels = bitmap.pixels();
+         if (pixels) {
+             detections = uirenderer::NsfwDetector::getInstance().detect(
+                 (const uint8_t*)pixels, bitmap.width(), bitmap.height(), bitmap.rowBytes(), bitmap.getGenerationID());
+         }
+    }
+    
+    // ASYNC LOADING: If processing (no result yet), draw GREEN placeholder and return.
+    if (shouldCheck && !detections.has_value()) {
         Paint greenPaint = paint ? *paint : Paint();
-        greenPaint.setColor(0xFF00FF00); // ARGB: Green
+        greenPaint.setColor(0xFF00FF00); // Green
         drawRect(dstLeft, dstTop, dstRight, dstBottom, greenPaint);
         return;
     }
@@ -697,13 +732,62 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float s
                 SkTileMode::kClamp, SkTileMode::kClamp, gainmapPaint.sampling());
         gainmapShader = gainmapShader->makeWithLocalMatrix(SkMatrix::RectToRect(srcRect, dstRect));
         gainmapPaint.setShader(gainmapShader);
-        return drawRect(dstLeft, dstTop, dstRight, dstBottom, gainmapPaint);
+        drawRect(dstLeft, dstTop, dstRight, dstBottom, gainmapPaint);
+        
+        // Apply censorship
+        if (detections.has_value() && !detections->empty()) {
+            Paint blackPaint;
+            blackPaint.setColor(SkColors::kBlack);
+            float srcW = srcRight - srcLeft;
+            float srcH = srcBottom - srcTop;
+            float dstW = dstRight - dstLeft;
+            float dstH = dstBottom - dstTop;
+            if (srcW > 0 && srcH > 0) {
+                float scaleX = dstW / srcW;
+                float scaleY = dstH / srcH;
+                for (const auto& det : *detections) {
+                    SkRect detRect = SkRect::MakeXYWH(det.x, det.y, det.w, det.h);
+                    if (detRect.intersect(srcRect)) {
+                        float censoredX = dstLeft + (detRect.left() - srcLeft) * scaleX;
+                        float censoredY = dstTop + (detRect.top() - srcTop) * scaleY;
+                        float censoredW = detRect.width() * scaleX;
+                        float censoredH = detRect.height() * scaleY;
+                        drawRect(censoredX, censoredY, censoredX + censoredW, censoredY + censoredH, blackPaint);
+                    }
+                }
+            }
+        }
+        return;
     }
 
     applyLooper(paint, [&](const Paint& p) {
         mCanvas->drawImageRect(image, srcRect, dstRect, p.sampling(), &p,
                                SkCanvas::kFast_SrcRectConstraint);
     });
+
+    // Apply censorship
+    if (detections.has_value() && !detections->empty()) {
+        Paint blackPaint;
+        blackPaint.setColor(SkColors::kBlack);
+        float srcW = srcRight - srcLeft;
+        float srcH = srcBottom - srcTop;
+        float dstW = dstRight - dstLeft;
+        float dstH = dstBottom - dstTop;
+        if (srcW > 0 && srcH > 0) {
+            float scaleX = dstW / srcW;
+            float scaleY = dstH / srcH;
+            for (const auto& det : *detections) {
+                SkRect detRect = SkRect::MakeXYWH(det.x, det.y, det.w, det.h);
+                if (detRect.intersect(srcRect)) {
+                    float censoredX = dstLeft + (detRect.left() - srcLeft) * scaleX;
+                    float censoredY = dstTop + (detRect.top() - srcTop) * scaleY;
+                    float censoredW = detRect.width() * scaleX;
+                    float censoredH = detRect.height() * scaleY;
+                    drawRect(censoredX, censoredY, censoredX + censoredW, censoredY + censoredH, blackPaint);
+                }
+            }
+        }
+    }
 }
 
 void SkiaCanvas::drawBitmapMesh(Bitmap& bitmap, int meshWidth, int meshHeight,
