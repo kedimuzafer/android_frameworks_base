@@ -3,6 +3,12 @@
 #include <algorithm>
 #include <fstream>
 #include <thread>
+#include <android/log.h>
+
+#ifdef LOG_TAG
+#undef LOG_TAG
+#endif
+#define LOG_TAG "NsfwDetector"
 
 namespace android {
 namespace uirenderer {
@@ -13,7 +19,7 @@ NsfwDetector& NsfwDetector::getInstance() {
 }
 
 NsfwDetector::NsfwDetector() {
-    // init() lazy loading ile detect içinde çağrılacak
+    // init() lazy loading
 }
 
 void NsfwDetector::init() {
@@ -26,7 +32,6 @@ void NsfwDetector::init() {
         sessionOptions.SetIntraOpNumThreads(1);
         sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
 
-        // Model yolu
         const char* modelPath = "/system/etc/nsfw_model.onnx"; 
         
         std::ifstream f(modelPath);
@@ -40,10 +45,11 @@ void NsfwDetector::init() {
         ALOGD("NsfwDetector initialized successfully");
     } catch (const Ort::Exception& e) {
         ALOGE("Failed to initialize NsfwDetector: %s", e.what());
+    } catch (const std::exception& e) {
+        ALOGE("Exception in init: %s", e.what());
     }
 }
 
-// Basit resize ve padding fonksiyonu
 std::vector<float> NsfwDetector::preprocess(const uint8_t* pixels, int width, int height, int stride, 
                                           float& x_ratio, float& y_ratio, float& x_pad, float& y_pad) {
     
@@ -86,53 +92,40 @@ std::vector<float> NsfwDetector::preprocess(const uint8_t* pixels, int width, in
 std::optional<std::vector<Detection>> NsfwDetector::detect(const uint8_t* pixels, int width, int height, int stride, uint32_t generationId) {
     if (!isInitialized_) {
         init();
-        if (!isInitialized_) return std::vector<Detection>(); // Init fail -> boş döndür (işleme)
+        if (!isInitialized_) return std::vector<Detection>(); 
     }
 
-    // 1. CACHE CONTROL
     {
         std::lock_guard<std::mutex> lock(cacheMutex_);
         auto it = cache_.find(generationId);
         if (it != cache_.end()) {
-            return it->second; // Cache'de var, direkt döndür
+            return it->second; 
         }
 
-        // Cache'de yok, işlemde mi?
         if (processing_[generationId]) {
-            return std::nullopt; // İşleniyor -> YEŞİL GÖSTER
+            return std::nullopt; 
         }
         
-        // İşlemde değil, başlat
         processing_[generationId] = true;
     }
 
-    // 2. PREPARE ASYNC TASK
-    // Piksel verisini burada kopyalayıp thread'e vermeliyiz çünkü pixels pointer'ı uçabilir.
-    // Ancak raw pixel kopyalamak maliyetli. Preprocess'i burada yapıp (hızlıdır),
-    // thread'e sadece 320x320 float vector vermek daha mantıklı.
     float x_ratio, y_ratio, x_pad, y_pad;
     std::vector<float> input_values = preprocess(pixels, width, height, stride, x_ratio, y_ratio, x_pad, y_pad);
 
-    // Thread başlat
     std::thread([this, input_values, width, height, generationId]() {
         runInferenceAsync(input_values, width, height, generationId);
     }).detach();
 
-    // İşlem başladı, şimdilik YEŞİL GÖSTER
     return std::nullopt;
 }
 
 void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int width, int height, uint32_t generationId) {
-    // Inference için boyut hesapları (tekrar)
     float scale = std::min((float)INPUT_WIDTH / width, (float)INPUT_HEIGHT / height);
     int new_w = (int)(width * scale);
     int new_h = (int)(height * scale);
 
     std::vector<int64_t> input_node_dims = {1, 3, INPUT_WIDTH, INPUT_HEIGHT};
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    
-    // Model Thread-Safety: Ort::Session::Run thread-safe'dir (eğer sessionOptions.SetIntraOpNumThreads(1) ise)
-    // Ama biz yine de mutex ile koruyalım mı? Gerek yok, ONNX Runtime handle eder.
     
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(memory_info, input_tensor_values.data(), input_tensor_values.size(), input_node_dims.data(), input_node_dims.size());
 
@@ -144,7 +137,12 @@ void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int
         output_tensors = session_.Run(Ort::RunOptions{nullptr}, input_names, &input_tensor, 1, output_names, 1);
     } catch (const Ort::Exception& e) {
         ALOGE("Async Inference failed: %s", e.what());
-        // Hata durumunda cache'e boş liste atıp kilidi aç
+        std::lock_guard<std::mutex> lock(cacheMutex_);
+        cache_[generationId] = {};
+        processing_.erase(generationId);
+        return;
+    } catch (const std::exception& e) {
+        ALOGE("Async Inference std exception: %s", e.what());
         std::lock_guard<std::mutex> lock(cacheMutex_);
         cache_[generationId] = {};
         processing_.erase(generationId);
@@ -204,14 +202,13 @@ void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int
         }
     }
 
-    // 3. SAVE TO CACHE
     {
         std::lock_guard<std::mutex> lock(cacheMutex_);
         if (cache_.size() > 500) {
             cache_.clear();
         }
         cache_[generationId] = detections;
-        processing_.erase(generationId); // İşlem bitti
+        processing_.erase(generationId); 
     }
 }
 

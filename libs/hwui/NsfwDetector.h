@@ -1,6 +1,5 @@
 #pragma once
 
-#include <android/log.h>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -8,11 +7,6 @@
 #include <optional>
 #include <thread>
 #include "onnxruntime_cxx_api.h"
-
-// Log tag
-#define LOG_TAG "NsfwDetector"
-#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 namespace android {
 namespace uirenderer {

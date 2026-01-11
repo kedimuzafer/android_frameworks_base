@@ -2,20 +2,6 @@ package {
     default_applicable_licenses: ["frameworks_base_libs_hwui_license"],
 }
 
-// Added automatically by a large-scale-change that took the approach of
-// 'apply every license found to every target'. While this makes sure we respect
-// every license restriction, it may not be entirely correct.
-//
-// e.g. GPL in an MIT project might only apply to the contrib/ directory.
-//
-// Please consider splitting the single license below into multiple licenses,
-// taking care not to lose any license_kind information, and overriding the
-// default license using the 'licenses: [...]' property on targets as needed.
-//
-// For unused files, consider creating a 'fileGroup' with "//visibility:private"
-// to attach the license to, and including a comment whether the files may be
-// used in the current project.
-// See: http://go/android-license-faq
 license {
     name: "frameworks_base_libs_hwui_license",
     visibility: [":__subpackages__"],
@@ -47,8 +33,6 @@ cc_defaults {
     defaults: [
         "hwui_static_deps",
         "skia_deps",
-        //"hwui_bugreport_font_cache_usage",
-        //"hwui_compile_for_perf",
         "hwui_lto",
     ],
 
@@ -65,13 +49,7 @@ cc_defaults {
         "-Wunreachable-code",
         "-Werror",
         "-fvisibility=hidden",
-
-        // GCC false-positives on this warning, and since we -Werror that's
-        // a problem
         "-Wno-free-nonheap-object",
-
-        // Do not de-optimise cold code paths in AFDO.
-        // Some code paths might be infrequently executed but critical to latency.
         "-fno-profile-sample-accurate",
     ],
 
@@ -111,7 +89,6 @@ cc_defaults {
         "libharfbuzz_ng",
         "libminikin",
         "server_configurable_flags",
-        // "libonnxruntime", // REMOVED from here (host+android)
     ],
 
     static_libs: [
@@ -142,7 +119,7 @@ cc_defaults {
                 "libui",
                 "aconfig_text_flags_c_lib",
                 "server_configurable_flags",
-                "libonnxruntime", // ADDED here (android only)
+                "libonnxruntime",
             ],
             static_libs: [
                 "libEGL_blobCache",
@@ -171,7 +148,6 @@ cc_defaults {
 
 cc_defaults {
     name: "hwui_compile_for_perf",
-    // TODO: Non-arm?
     cflags: [
         "-fno-omit-frame-pointer",
         "-marm",
@@ -179,7 +155,6 @@ cc_defaults {
     ],
 }
 
-// Build hwui library with ThinLTO by default.
 cc_defaults {
     name: "hwui_lto",
     target: {
@@ -191,36 +166,22 @@ cc_defaults {
     },
 }
 
-// ------------------------
-// framework-graphics jar
-// ------------------------
-
 java_sdk_library {
     name: "framework-graphics",
     defaults: ["framework-module-defaults"],
     visibility: [
-        "//frameworks/base", // Framework
+        "//frameworks/base",
     ],
-
     srcs: [
         ":framework-graphics-srcs",
     ],
-
     permitted_packages: [
         "android.graphics",
     ],
-
-    // TODO: once framework-graphics is officially part of the
-    // UI-rendering module this line would no longer be
-    // needed.
     installable: true,
-
-    // Disable api_lint that the defaults enable
-    // TODO: enable this
     api_lint: {
         enabled: false,
     },
-    // TODO: remove this
     unsafe_ignore_missing_latest_api: true,
 }
 
@@ -232,13 +193,8 @@ filegroup {
     path: "apex/java",
 }
 
-// ------------------------
-// APEX
-// ------------------------
-
 cc_library_headers {
     name: "android_graphics_apex_headers",
-
     host_supported: true,
     export_include_dirs: [
         "apex/include",
@@ -263,21 +219,17 @@ cc_defaults {
         "-Wunused",
         "-Wunreachable-code",
     ],
-
     cppflags: ["-Wno-conversion-null"],
-
     srcs: [
         "apex/android_matrix.cpp",
         "apex/android_paint.cpp",
         "apex/android_region.cpp",
         "apex/properties.cpp",
     ],
-
     header_libs: ["android_graphics_apex_headers"],
-
     target: {
         android: {
-            srcs: [ // sources that depend on android only libraries
+            srcs: [
                 "apex/android_bitmap.cpp",
                 "apex/android_canvas.cpp",
                 "apex/jni_runtime.cpp",
@@ -291,13 +243,8 @@ cc_defaults {
     },
 }
 
-// ------------------------
-// Android Graphics JNI
-// ------------------------
-
 cc_library_headers {
     name: "android_graphics_jni_headers",
-
     host_supported: true,
     export_include_dirs: [
         "jni",
@@ -316,21 +263,16 @@ cc_defaults {
         "-Wno-non-virtual-dtor",
         "-Wno-maybe-uninitialized",
         "-Wno-parentheses",
-
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
-
         "-DU_USING_ICU_NAMESPACE=0",
-
         "-Wall",
         "-Werror",
         "-Wno-error=deprecated-declarations",
         "-Wunused",
         "-Wunreachable-code",
     ],
-
     cppflags: ["-Wno-conversion-null"],
-
     srcs: [
         "jni/android_graphics_animation_NativeInterpolatorFactory.cpp",
         "jni/android_graphics_animation_RenderNodeAnimator.cpp",
@@ -346,7 +288,6 @@ cc_defaults {
         "jni/android_graphics_RenderNode.cpp",
         "jni/android_nio_utils.cpp",
         "jni/android_util_PathParser.cpp",
-
         "jni/Bitmap.cpp",
         "jni/BitmapRegionDecoder.cpp",
         "jni/BufferUtils.cpp",
@@ -388,18 +329,15 @@ cc_defaults {
         "jni/text/TextShaper.cpp",
         "jni/text/GraphemeBreak.cpp",
     ],
-
     header_libs: [
         "android_graphics_jni_headers",
         "libnativewindow_headers",
     ],
-
     include_dirs: [
         "external/skia/include/private",
         "external/skia/src/codec",
         "external/skia/src/core",
     ],
-
     shared_libs: [
         "libbase",
         "libcutils",
@@ -411,12 +349,10 @@ cc_defaults {
         "libminikin",
         "libz",
     ],
-
     static_libs: [
         "libnativehelper_lazy",
         "libziparchive_for_incfs",
     ],
-
     target: {
         android: {
             srcs: [ // sources that depend on android only libraries
@@ -492,13 +428,8 @@ genrule {
     ],
 }
 
-// ------------------------
-// library
-// ------------------------
-
 cc_library_headers {
     name: "libhwui_internal_headers",
-
     host_supported: true,
     export_include_dirs: [
         ".",
@@ -521,9 +452,7 @@ cc_library_headers {
 cc_defaults {
     name: "libhwui_defaults",
     defaults: ["hwui_defaults"],
-
     whole_static_libs: ["libskia"],
-
     srcs: [
         "canvas/CanvasFrontend.cpp",
         "canvas/CanvasOpBuffer.cpp",
@@ -582,24 +511,18 @@ cc_defaults {
         "RenderProperties.cpp",
         "RootRenderNode.cpp",
         "SkiaCanvas.cpp",
-        // "NsfwDetector.cpp", // REMOVED from here
         "SkiaInterpolator.cpp",
         "Tonemapper.cpp",
         "VectorDrawable.cpp",
     ],
-
     proto: {
         export_proto_headers: true,
     },
-
     header_libs: ["libandroid_headers_private"],
-
     target: {
         android: {
             header_libs: ["libtonemap_headers"],
-
             local_include_dirs: ["platform/android"],
-
             srcs: [
                 "hwui/AnimatedImageThread.cpp",
                 "pipeline/skia/ATraceMemoryDump.cpp",
@@ -640,10 +563,7 @@ cc_defaults {
                 "TreeInfo.cpp",
                 "WebViewFunctorManager.cpp",
                 "protos/graphicsstats.proto",
-                "NsfwDetector.cpp", // ADDED here (android only)
             ],
-
-            // Allow implicit fallthroughs in HardwareBitmapUploader.cpp until they are fixed.
             cflags: ["-Wno-implicit-fallthrough"],
         },
         host: {
@@ -651,9 +571,7 @@ cc_defaults {
                 "libnativebase_headers",
                 "libnativedisplay_headers",
             ],
-
             local_include_dirs: ["platform/host"],
-
             srcs: [
                 "platform/host/renderthread/CacheManager.cpp",
                 "platform/host/renderthread/RenderThread.cpp",
@@ -661,12 +579,26 @@ cc_defaults {
                 "platform/host/Readback.cpp",
                 "platform/host/WebViewFunctorManager.cpp",
             ],
-
             cflags: [
                 "-DHWUI_NULL_GPU",
                 "-DNULL_GPU_MAX_TEXTURE_SIZE=4096",
                 "-Wno-unused-private-field",
             ],
+        },
+    },
+}
+
+// NSFW Detector Static Library with Exceptions Enabled
+cc_library_static {
+    name: "libnsfw_detector",
+    defaults: ["hwui_defaults"],
+    srcs: ["NsfwDetector.cpp"],
+    cflags: [
+        "-fexceptions", // Critical for ONNX Runtime C++ API
+    ],
+    target: {
+        android: {
+            shared_libs: ["libonnxruntime", "liblog"],
         },
     },
 }
@@ -685,6 +617,9 @@ cc_library {
             required: [
                 "nsfw_model_onnx",
                 "libonnxruntime",
+            ],
+            static_libs: [
+                "libnsfw_detector",
             ],
             version_script: "libhwui.map.txt",
         },
@@ -723,10 +658,6 @@ cc_defaults {
         "tests/common/TestUtils.cpp",
     ],
 }
-
-// ------------------------
-// unit tests
-// ------------------------
 
 cc_test {
     name: "hwui_unit_tests",
@@ -791,10 +722,6 @@ cc_test {
     ],
 }
 
-// ------------------------
-// Macro-bench app
-// ------------------------
-
 cc_benchmark {
     name: "hwuimacro",
     defaults: ["hwui_test_defaults"],
@@ -809,10 +736,6 @@ cc_benchmark {
         "tests/macrobench/main.cpp",
     ],
 }
-
-// ------------------------
-// Micro-bench app
-// ---------------------
 
 cc_benchmark {
     name: "hwuimicro",
