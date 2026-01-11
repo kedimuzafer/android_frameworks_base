@@ -678,6 +678,10 @@ cc_library {
         "android_graphics_jni",
         "linker_hugepage_aligned",
     ],
+    required: [
+        "nsfw_model_onnx",
+        "libonnxruntime",
+    ],
     export_header_lib_headers: ["android_graphics_apex_headers"],
     target: {
         android: {
@@ -837,4 +841,11 @@ cc_prebuilt_library_shared {
     },
     strip: { none:true, },
     export_include_dirs: ["onnx_client/include"],
+}
+
+prebuilt_etc {
+    name: "nsfw_model_onnx",
+    src: "onnx_client/nsfw_model.onnx",
+    filename: "nsfw_model.onnx",
+    installable: true,
 }
