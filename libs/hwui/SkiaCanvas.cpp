@@ -58,7 +58,9 @@
 #include "pipeline/skia/AnimatedDrawables.h"
 #include "pipeline/skia/HolePunch.h"
 
+#ifdef __ANDROID__
 #include "NsfwDetector.h"
+#endif
 
 namespace android {
 
@@ -637,6 +639,7 @@ bool SkiaCanvas::useGainmapShader(Bitmap& bitmap) {
 }
 
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* paint) {
+#ifdef __ANDROID__
     // NSFW Detection
     std::optional<std::vector<uirenderer::Detection>> detections;
     bool shouldCheck = bitmap.width() > 200 && bitmap.height() > 200 && !bitmap.isHardware();
@@ -656,6 +659,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* 
         drawRect(left, top, left + bitmap.width(), top + bitmap.height(), greenPaint);
         return;
     }
+#endif
 
     auto image = bitmap.makeImage();
 
@@ -667,6 +671,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* 
         gainmapPaint.setShader(gainmapShader);
         drawRect(left, top, left + bitmap.width(), top + bitmap.height(), gainmapPaint);
         
+#ifdef __ANDROID__
         // Apply censorship
         if (detections.has_value() && !detections->empty()) {
             Paint blackPaint;
@@ -675,6 +680,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* 
                 drawRect(left + det.x, top + det.y, left + det.x + det.w, top + det.y + det.h, blackPaint);
             }
         }
+#endif
         return;
     }
 
@@ -682,6 +688,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* 
         mCanvas->drawImage(image, left, top, p.sampling(), &p);
     });
     
+#ifdef __ANDROID__
     // Apply censorship
     if (detections.has_value() && !detections->empty()) {
         Paint blackPaint;
@@ -690,6 +697,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* 
             drawRect(left + det.x, top + det.y, left + det.x + det.w, top + det.y + det.h, blackPaint);
         }
     }
+#endif
 }
 
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, const SkMatrix& matrix, const Paint* paint) {
@@ -701,6 +709,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, const SkMatrix& matrix, const Paint*
 void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float srcRight,
                             float srcBottom, float dstLeft, float dstTop, float dstRight,
                             float dstBottom, const Paint* paint) {
+#ifdef __ANDROID__
     // NSFW Detection
     std::optional<std::vector<uirenderer::Detection>> detections;
     bool shouldCheck = bitmap.width() > 200 && bitmap.height() > 200 && !bitmap.isHardware();
@@ -720,6 +729,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float s
         drawRect(dstLeft, dstTop, dstRight, dstBottom, greenPaint);
         return;
     }
+#endif
 
     auto image = bitmap.makeImage();
     SkRect srcRect = SkRect::MakeLTRB(srcLeft, srcTop, srcRight, srcBottom);
@@ -734,6 +744,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float s
         gainmapPaint.setShader(gainmapShader);
         drawRect(dstLeft, dstTop, dstRight, dstBottom, gainmapPaint);
         
+#ifdef __ANDROID__
         // Apply censorship
         if (detections.has_value() && !detections->empty()) {
             Paint blackPaint;
@@ -757,6 +768,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float s
                 }
             }
         }
+#endif
         return;
     }
 
@@ -765,6 +777,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float s
                                SkCanvas::kFast_SrcRectConstraint);
     });
 
+#ifdef __ANDROID__
     // Apply censorship
     if (detections.has_value() && !detections->empty()) {
         Paint blackPaint;
@@ -788,6 +801,7 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float srcLeft, float srcTop, float s
             }
         }
     }
+#endif
 }
 
 void SkiaCanvas::drawBitmapMesh(Bitmap& bitmap, int meshWidth, int meshHeight,
