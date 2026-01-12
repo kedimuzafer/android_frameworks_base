@@ -123,6 +123,7 @@ std::optional<std::vector<Detection>> NsfwDetector::detect(const uint8_t* pixels
 }
 
 void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int width, int height, uint32_t generationId) {
+    ALOGD("runInferenceAsync: START genId=%u", generationId);
     int INPUT_WIDTH = pImpl->INPUT_WIDTH;
     int INPUT_HEIGHT = pImpl->INPUT_HEIGHT;
     
@@ -136,7 +137,9 @@ void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int
         const char* input_names[] = {"images"};
         const char* output_names[] = {"output0"};
 
+        ALOGD("runInferenceAsync: Before ONNX Run genId=%u", generationId);
         std::vector<Ort::Value> output_tensors = pImpl->session.Run(Ort::RunOptions{nullptr}, input_names, &input_tensor, 1, output_names, 1);
+        ALOGD("runInferenceAsync: After ONNX Run genId=%u", generationId);
 
         float* floatarr = output_tensors[0].GetTensorMutableData<float>();
         auto type_info = output_tensors[0].GetTensorTypeAndShapeInfo();
@@ -172,6 +175,8 @@ void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int
                 }
                 
                 if (is_censored) {
+                    ALOGD("Found NSFW item: Class %d with score %.2f", max_class_id, max_score);
+
                     float x = floatarr[0 * anchors + i];
                     float y = floatarr[1 * anchors + i];
                     float w = floatarr[2 * anchors + i];
@@ -203,7 +208,7 @@ void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int
         processing_.erase(generationId);
 
     } catch (const std::exception& e) {
-        ALOGE("Async Inference failed: %s", e.what());
+        ALOGE("Async Inference failed for genId=%u: %s", generationId, e.what());
         std::lock_guard<std::mutex> lock(cacheMutex_);
         cache_[generationId] = {};
         processing_.erase(generationId);
