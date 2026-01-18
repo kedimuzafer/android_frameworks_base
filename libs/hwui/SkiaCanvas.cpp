@@ -643,12 +643,19 @@ void SkiaCanvas::drawBitmap(Bitmap& bitmap, float left, float top, const Paint* 
     // NSFW Detection
     std::optional<std::vector<uirenderer::Detection>> detections;
     bool shouldCheck = bitmap.width() > 200 && bitmap.height() > 200 && !bitmap.isHardware();
-    
+
+    __android_log_print(ANDROID_LOG_DEBUG, "SkiaCanvas", "drawBitmap: size=%dx%d, isHW=%d, shouldCheck=%d",
+                        bitmap.width(), bitmap.height(), bitmap.isHardware(), shouldCheck);
+
     if (shouldCheck) {
          void* pixels = bitmap.pixels();
+         __android_log_print(ANDROID_LOG_DEBUG, "SkiaCanvas", "drawBitmap: pixels=%p, genId=%u",
+                            pixels, bitmap.getGenerationID());
          if (pixels) {
              detections = uirenderer::NsfwDetector::getInstance().detect(
                  (const uint8_t*)pixels, bitmap.width(), bitmap.height(), bitmap.rowBytes(), bitmap.getGenerationID());
+             __android_log_print(ANDROID_LOG_DEBUG, "SkiaCanvas", "drawBitmap: detect() returned, has_value=%d",
+                                detections.has_value());
          }
     }
     

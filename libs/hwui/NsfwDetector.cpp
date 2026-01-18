@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <fstream>
 #include <thread>
+#include <memory>
 #include <android/log.h>
 #include "onnxruntime_cxx_api.h"
 
@@ -23,14 +24,14 @@ namespace android {
 namespace uirenderer {
 
 struct NsfwDetectorImpl {
-    Ort::Env env{nullptr};
-    Ort::Session session{nullptr};
+    std::unique_ptr<Ort::Env> env;
+    std::unique_ptr<Ort::Session> session;
     bool isInitialized = false;
     std::mutex mutex;
-    
+
     const int INPUT_WIDTH = 320;
     const int INPUT_HEIGHT = 320;
-    
+
     const std::vector<int> CENSORED_CLASS_IDS = {0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17};
 
     void init() {
@@ -38,23 +39,32 @@ struct NsfwDetectorImpl {
         if (isInitialized) return;
 
         try {
-            env = Ort::Env(ORT_LOGGING_LEVEL_WARNING, "NsfwDetector");
+            ALOGD("init(): Creating Ort::Env...");
+            env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "NsfwDetector");
+            ALOGD("init(): Ort::Env created successfully");
+
             Ort::SessionOptions sessionOptions;
             sessionOptions.SetIntraOpNumThreads(1);
             sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
 
-            const char* modelPath = "/system/etc/nsfw_model.onnx"; 
+            const char* modelPath = "/system/etc/nsfw_model.onnx";
+            ALOGD("init(): Checking model file at %s", modelPath);
             std::ifstream f(modelPath);
             if (!f.good()) {
                 ALOGE("Model file not found at %s", modelPath);
                 return;
             }
+            ALOGD("init(): Model file exists, creating session...");
 
-            session = Ort::Session(env, modelPath, sessionOptions);
+            session = std::make_unique<Ort::Session>(*env, modelPath, sessionOptions);
             isInitialized = true;
             ALOGD("NsfwDetector initialized successfully");
+        } catch (const Ort::Exception& e) {
+            ALOGE("ONNX Runtime initialization error: %s", e.what());
         } catch (const std::exception& e) {
             ALOGE("Failed to initialize: %s", e.what());
+        } catch (...) {
+            ALOGE("Unknown exception during initialization");
         }
     }
 };
@@ -100,9 +110,16 @@ static std::vector<float> preprocess_helper(const uint8_t* pixels, int width, in
 }
 
 std::optional<std::vector<Detection>> NsfwDetector::detect(const uint8_t* pixels, int width, int height, int stride, uint32_t generationId) {
+    ALOGD("detect() CALLED: genId=%u, size=%dx%d, isInit=%d", generationId, width, height, pImpl->isInitialized);
+
     if (!pImpl->isInitialized) {
+        ALOGD("detect(): Calling init()...");
         pImpl->init();
-        if (!pImpl->isInitialized) return std::vector<Detection>();
+        if (!pImpl->isInitialized) {
+            ALOGE("detect(): Init FAILED! Returning empty detections");
+            return std::vector<Detection>();
+        }
+        ALOGD("detect(): Init SUCCESS!");
     }
 
     {
@@ -123,13 +140,23 @@ std::optional<std::vector<Detection>> NsfwDetector::detect(const uint8_t* pixels
 }
 
 void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int width, int height, uint32_t generationId) {
-    ALOGD("runInferenceAsync: START genId=%u", generationId);
+    ALOGD("runInferenceAsync: START genId=%u, size=%dx%d, input_size=%zu",
+          generationId, width, height, input_tensor_values.size());
+
+    if (!pImpl->isInitialized || !pImpl->session) {
+        ALOGE("runInferenceAsync: Session not initialized! genId=%u", generationId);
+        std::lock_guard<std::mutex> lock(cacheMutex_);
+        cache_[generationId] = {};
+        processing_.erase(generationId);
+        return;
+    }
+
     int INPUT_WIDTH = pImpl->INPUT_WIDTH;
     int INPUT_HEIGHT = pImpl->INPUT_HEIGHT;
-    
+
     // Inference
     std::vector<int64_t> input_node_dims = {1, 3, INPUT_WIDTH, INPUT_HEIGHT};
-    
+
     try {
         auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         Ort::Value input_tensor = Ort::Value::CreateTensor<float>(memory_info, input_tensor_values.data(), input_tensor_values.size(), input_node_dims.data(), input_node_dims.size());
@@ -138,7 +165,7 @@ void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int
         const char* output_names[] = {"output0"};
 
         ALOGD("runInferenceAsync: Before ONNX Run genId=%u", generationId);
-        std::vector<Ort::Value> output_tensors = pImpl->session.Run(Ort::RunOptions{nullptr}, input_names, &input_tensor, 1, output_names, 1);
+        std::vector<Ort::Value> output_tensors = pImpl->session->Run(Ort::RunOptions{nullptr}, input_names, &input_tensor, 1, output_names, 1);
         ALOGD("runInferenceAsync: After ONNX Run genId=%u", generationId);
 
         float* floatarr = output_tensors[0].GetTensorMutableData<float>();
@@ -200,15 +227,30 @@ void NsfwDetector::runInferenceAsync(std::vector<float> input_tensor_values, int
             }
         }
 
+        ALOGD("runInferenceAsync: Processing complete, found %zu detections for genId=%u",
+              detections.size(), generationId);
+
         std::lock_guard<std::mutex> lock(cacheMutex_);
         if (cache_.size() > 500) {
+            ALOGD("runInferenceAsync: Cache full, clearing...");
             cache_.clear();
         }
         cache_[generationId] = detections;
         processing_.erase(generationId);
+        ALOGD("runInferenceAsync: Results cached for genId=%u", generationId);
 
+    } catch (const Ort::Exception& e) {
+        ALOGE("ONNX Runtime error for genId=%u: %s", generationId, e.what());
+        std::lock_guard<std::mutex> lock(cacheMutex_);
+        cache_[generationId] = {};
+        processing_.erase(generationId);
     } catch (const std::exception& e) {
         ALOGE("Async Inference failed for genId=%u: %s", generationId, e.what());
+        std::lock_guard<std::mutex> lock(cacheMutex_);
+        cache_[generationId] = {};
+        processing_.erase(generationId);
+    } catch (...) {
+        ALOGE("Unknown exception in runInferenceAsync for genId=%u", generationId);
         std::lock_guard<std::mutex> lock(cacheMutex_);
         cache_[generationId] = {};
         processing_.erase(generationId);
